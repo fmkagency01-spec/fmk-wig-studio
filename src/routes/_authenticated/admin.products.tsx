@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBDT } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Upload, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/products")({
   component: AdminProducts,
