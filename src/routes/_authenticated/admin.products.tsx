@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBDT } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Upload, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/products")({
   component: AdminProducts,
@@ -33,6 +33,34 @@ function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const newUrls: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+        });
+        if (upErr) throw upErr;
+        // 100-year signed URL (bucket is private)
+        const { data, error } = await supabase.storage.from("product-images").createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
+        if (error) throw error;
+        newUrls.push(data.signedUrl);
+      }
+      setEditing((prev) => prev ? { ...prev, images: [...(prev.images || []), ...newUrls] } : prev);
+      toast.success(`Uploaded ${newUrls.length} image(s)`);
+    } catch (e: any) {
+      toast.error(e.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const load = async () => {
     const [{ data: p }, { data: c }] = await Promise.all([
@@ -145,8 +173,44 @@ function AdminProducts() {
                 </select>
               </div>
               <div>
-                <Label>Image URLs (one per line)</Label>
-                <Textarea rows={3} value={(editing.images || []).join("\n")} onChange={(e) => setEditing({ ...editing, images: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })} placeholder="/products/my-wig.jpg or https://..." />
+                <Label>Images</Label>
+                <div className="mt-2 space-y-3">
+                  {(editing.images || []).length > 0 && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {(editing.images || []).map((url, i) => (
+                        <div key={i} className="relative group aspect-square rounded border overflow-hidden bg-muted">
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setEditing({ ...editing, images: (editing.images || []).filter((_, idx) => idx !== i) })}
+                            className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <label className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 cursor-pointer hover:border-brand hover:bg-brand-soft/30 transition text-sm text-muted-foreground">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    <span>{uploading ? "Uploading..." : "Click to upload images"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }}
+                    />
+                  </label>
+                  <Textarea
+                    rows={2}
+                    value={(editing.images || []).join("\n")}
+                    onChange={(e) => setEditing({ ...editing, images: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                    placeholder="Or paste image URLs (one per line)"
+                    className="text-xs font-mono"
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} /> Featured</label>
