@@ -33,6 +33,34 @@ function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const newUrls: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+        });
+        if (upErr) throw upErr;
+        // 100-year signed URL (bucket is private)
+        const { data, error } = await supabase.storage.from("product-images").createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
+        if (error) throw error;
+        newUrls.push(data.signedUrl);
+      }
+      setEditing((prev) => prev ? { ...prev, images: [...(prev.images || []), ...newUrls] } : prev);
+      toast.success(`Uploaded ${newUrls.length} image(s)`);
+    } catch (e: any) {
+      toast.error(e.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const load = async () => {
     const [{ data: p }, { data: c }] = await Promise.all([
