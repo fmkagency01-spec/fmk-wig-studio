@@ -62,6 +62,29 @@ function AdminProducts() {
     }
   };
 
+  const extractStoragePath = (url: string): string | null => {
+    // Signed URL pattern: /storage/v1/object/sign/product-images/<path>?token=...
+    // Public URL pattern: /storage/v1/object/public/product-images/<path>
+    const m = url.match(/\/product-images\/([^?]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+
+  const removeImage = async (index: number) => {
+    if (!editing) return;
+    const url = (editing.images || [])[index];
+    const path = url ? extractStoragePath(url) : null;
+    const nextImages = (editing.images || []).filter((_, i) => i !== index);
+    setEditing({ ...editing, images: nextImages });
+    if (path) {
+      const { error } = await supabase.storage.from("product-images").remove([path]);
+      if (error) {
+        toast.error(`Removed from list, but storage delete failed: ${error.message}`);
+        return;
+      }
+    }
+    toast.success("Image removed");
+  };
+
   const load = async () => {
     const [{ data: p }, { data: c }] = await Promise.all([
       supabase.from("products").select("*").order("created_at", { ascending: false }),
