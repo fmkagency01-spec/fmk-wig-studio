@@ -35,4 +35,6 @@
 - Analytics/B2B inquiries always persist under `api/data/` (gitignored). They also attempt Supabase inserts when the migration is applied.
 - Multi-currency is **display FX** (BDT base → USD via `VITE_USD_PER_BDT` / `NEXT_PUBLIC_USD_PER_BDT`); cart line prices remain BDT numbers.
 - Env templates: `.env.example` (root) and `next-app/.env.local` (do not commit secrets).
+- `next-app/.env.local` is gitignored (no template is committed) and is **not** recreated by the update script. The Next app loads env only from its own dir, so create it with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (mirror root `.env`), plus optional `NEXT_PUBLIC_API_URL=/api`, `NEXT_PUBLIC_USD_PER_BDT`, `API_PROXY_TARGET=http://127.0.0.1:3001`. Without it the Next pages still render but Supabase auth/data calls fail.
+- Port note: `bun run dev` (Vite) and `bun run dev:next` both start the API on `:3001`, so don't run both at once. To run the Vite and Next frontends together, start one full stack (e.g. `bun run dev:next`) and add the other frontend only via `bun run dev:web` (Vite, no API).
 - Lovable MCP project import (`a65f329d-…`) requires authenticating the Lovable MCP server in Cursor; until then we refine the in-repo Lovable components directly.
