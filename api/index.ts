@@ -4,6 +4,7 @@ import cors from "cors";
 import { z } from "zod";
 import { appendAnalytics, appendInquiry, listAnalytics, listInquiries, markInquiryJarvisSynced } from "./lib/store.ts";
 import { getSupabaseAdmin, verifyBearerUser } from "./lib/supabase.ts";
+import { requireJwt } from "./lib/jwt.ts";
 import { pushToJarvis } from "./lib/jarvis.ts";
 
 const PRODUCT_WHOLESALE: Record<
@@ -130,12 +131,7 @@ export function createApiApp() {
     res.status(201).json({ ok: true, id: event.id });
   });
 
-  app.get("/analytics/events", async (req, res) => {
-    const user = await verifyBearerUser(req.header("authorization"));
-    if (!user) {
-      res.status(401).json({ error: "JWT required" });
-      return;
-    }
+  app.get("/analytics/events", requireJwt, async (req, res) => {
     res.json({ events: listAnalytics(Number(req.query.limit) || 100) });
   });
 
@@ -307,21 +303,12 @@ export function createApiApp() {
     res.status(201).json({ ok: true, inquiry_id: inquiry.id, jarvis });
   });
 
-  app.get("/b2b/inquiries", async (req, res) => {
-    const user = await verifyBearerUser(req.header("authorization"));
-    if (!user) {
-      res.status(401).json({ error: "JWT required" });
-      return;
-    }
+  app.get("/b2b/inquiries", requireJwt, async (_req, res) => {
     res.json({ inquiries: listInquiries() });
   });
 
-  app.post("/jarvis/sync-order", async (req, res) => {
-    const user = await verifyBearerUser(req.header("authorization"));
-    if (!user) {
-      res.status(401).json({ error: "JWT required" });
-      return;
-    }
+  app.post("/jarvis/sync-order", requireJwt, async (req, res) => {
+    const user = (req as typeof req & { user: { id: string } }).user;
     const schema = z.object({
       order_id: z.string(),
       total: z.number().optional(),
@@ -352,12 +339,7 @@ export function createApiApp() {
     res.json({ items });
   });
 
-  app.post("/jarvis/sync-catalog", async (req, res) => {
-    const user = await verifyBearerUser(req.header("authorization"));
-    if (!user) {
-      res.status(401).json({ error: "JWT required" });
-      return;
-    }
+  app.post("/jarvis/sync-catalog", requireJwt, async (_req, res) => {
     const items = Object.entries(PRODUCT_WHOLESALE).map(([slug, p]) => ({ slug, ...p }));
     const result = await pushToJarvis({
       type: "catalog",

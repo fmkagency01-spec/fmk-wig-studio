@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "concurrently -k -n web,api -c magenta,cyan \"vite dev\" \"bun run api:dev\"",
     "dev:web": "vite dev",
+    "dev:next": "concurrently -k -n next,api -c blue,cyan \"bun run --cwd next-app dev -- -p 3000\" \"bun run api:dev\"",
     "api:dev": "bun --watch api/index.ts",
     "api:start": "bun api/index.ts",
     "build": "vite build",
+    "build:next": "bun run --cwd next-app build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:next": "bun run --cwd next-app lint",
     "format": "prettier --write ."
   },
   "dependencies": {
