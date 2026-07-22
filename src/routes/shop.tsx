@@ -83,7 +83,7 @@ function ShopPage() {
 
   const setFilter = (key: keyof typeof search, value: string | undefined) => {
     void navigate({
-      search: (prev) => {
+      search: (prev: Record<string, string | undefined>) => {
         const next = { ...prev, [key]: value };
         if (!value) delete next[key];
         return next;
