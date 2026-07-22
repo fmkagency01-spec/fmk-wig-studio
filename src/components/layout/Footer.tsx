@@ -23,7 +23,7 @@ export function Footer() {
             <li><Link to="/shop">All Wigs</Link></li>
             <li><Link to="/shop" search={{ category: "human-hair-wigs" }}>Human Hair</Link></li>
             <li><Link to="/shop" search={{ category: "lace-front-wigs" }}>Lace Front</Link></li>
-            <li><Link to="/shop" search={{ category: "synthetic-wigs" }}>Synthetic</Link></li>
+            <li><Link to="/wholesale">Wholesale / B2B</Link></li>
           </ul>
         </div>
         <div>

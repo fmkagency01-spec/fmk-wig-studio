@@ -1,20 +1,26 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { productBySlugQuery } from "@/lib/queries";
-import { formatBDT } from "@/lib/format";
+import { useCurrency } from "@/lib/currency";
 import { useCart } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Minus, Plus, Truck, ShieldCheck, RefreshCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { attrsForSlug } from "@/lib/product-attributes";
+import { trackEvent } from "@/lib/analytics";
 
 export const Route = createFileRoute("/product/$slug")({
   component: ProductPage,
-  errorComponent: ({ error }) => <div className="p-8 text-center text-muted-foreground">{error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div className="p-8 text-center text-muted-foreground">{error.message}</div>
+  ),
   notFoundComponent: () => (
     <div className="p-16 text-center">
       <h1 className="text-2xl font-bold">Product not found</h1>
-      <Link to="/shop" className="text-brand mt-4 inline-block underline">Back to shop</Link>
+      <Link to="/shop" className="text-brand mt-4 inline-block underline">
+        Back to shop
+      </Link>
     </div>
   ),
 });
@@ -23,8 +29,21 @@ function ProductPage() {
   const { slug } = Route.useParams();
   const { data: product, isLoading } = useQuery(productBySlugQuery(slug));
   const { add } = useCart();
+  const { format, currency } = useCurrency();
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
+  const attrs = attrsForSlug(slug);
+
+  useEffect(() => {
+    if (product) {
+      void trackEvent({
+        event_name: "product_view",
+        product_id: product.id,
+        currency,
+        metadata: { slug },
+      });
+    }
+  }, [product, slug, currency]);
 
   if (isLoading) {
     return (
@@ -42,39 +61,74 @@ function ProductPage() {
   if (!product) throw notFound();
 
   const images = product.images.length ? product.images : ["/products/placeholder.jpg"];
-  const discount = product.compare_at_price && product.compare_at_price > product.price
-    ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100) : 0;
+  const discount =
+    product.compare_at_price && product.compare_at_price > product.price
+      ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
+      : 0;
 
   const handleAdd = () => {
-    add({
+    add(
+      {
+        product_id: product.id,
+        slug: product.slug,
+        name: product.name,
+        price: product.price,
+        image: images[0],
+      },
+      qty,
+    );
+    void trackEvent({
+      event_name: "add_to_cart",
       product_id: product.id,
-      slug: product.slug,
-      name: product.name,
-      price: product.price,
-      image: images[0],
-    }, qty);
+      currency,
+      metadata: { qty, slug: product.slug },
+    });
     toast.success(`${product.name} added to cart`);
   };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <nav className="text-xs text-muted-foreground mb-4">
-        <Link to="/" className="hover:text-brand">Home</Link> / <Link to="/shop" className="hover:text-brand">Shop</Link> / <span>{product.name}</span>
+        <Link to="/" className="hover:text-brand">
+          Home
+        </Link>{" "}
+        /{" "}
+        <Link to="/shop" className="hover:text-brand">
+          Shop
+        </Link>{" "}
+        / <span>{product.name}</span>
       </nav>
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         <div>
           <div className="aspect-square rounded-xl overflow-hidden bg-muted">
-            <img src={images[activeImage]} alt={product.name} className="h-full w-full object-cover" />
+            <img
+              src={images[activeImage]}
+              alt={product.name}
+              className="h-full w-full object-cover"
+              decoding="async"
+            />
           </div>
           {images.length > 1 && (
             <div className="mt-3 grid grid-cols-4 gap-2">
               {images.map((img, i) => (
-                <button key={i} onClick={() => setActiveImage(i)} className={`aspect-square rounded overflow-hidden border-2 ${i === activeImage ? "border-brand" : "border-transparent"}`}>
+                <button
+                  key={i}
+                  onClick={() => setActiveImage(i)}
+                  className={`aspect-square rounded overflow-hidden border-2 ${i === activeImage ? "border-brand" : "border-transparent"}`}
+                >
                   <img src={img} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>
+          )}
+          {attrs?.video_url && (
+            <video
+              className="mt-4 w-full rounded-xl"
+              controls
+              preload="metadata"
+              src={attrs.video_url}
+            />
           )}
         </div>
 
@@ -82,28 +136,82 @@ function ProductPage() {
           <div>
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <div className="flex items-baseline gap-3 mt-3">
-              <span className="text-3xl font-bold text-brand">{formatBDT(product.price)}</span>
+              <span className="text-3xl font-bold text-brand">{format(product.price)}</span>
               {product.compare_at_price && product.compare_at_price > product.price && (
                 <>
-                  <span className="text-lg text-muted-foreground line-through">{formatBDT(product.compare_at_price)}</span>
-                  <span className="bg-sale text-white text-xs font-bold px-2 py-1 rounded">-{discount}%</span>
+                  <span className="text-lg text-muted-foreground line-through">
+                    {format(product.compare_at_price)}
+                  </span>
+                  <span className="bg-sale text-white text-xs font-bold px-2 py-1 rounded">
+                    -{discount}%
+                  </span>
                 </>
               )}
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
-              {product.stock > 0 ? <span className="text-green-600">✓ In stock ({product.stock} available)</span> : <span className="text-destructive">Out of stock</span>}
+              {product.stock > 0 ? (
+                <span className="text-green-600">✓ In stock ({product.stock} available)</span>
+              ) : (
+                <span className="text-destructive">Out of stock</span>
+              )}
             </div>
           </div>
+
+          {attrs && (
+            <dl className="grid grid-cols-2 gap-3 text-sm border rounded-lg p-4 bg-card">
+              <div>
+                <dt className="text-muted-foreground text-xs uppercase">Hair type</dt>
+                <dd className="font-medium capitalize">{attrs.hair_type}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs uppercase">Cap size</dt>
+                <dd className="font-medium capitalize">{attrs.cap_size}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs uppercase">Texture</dt>
+                <dd className="font-medium capitalize">{attrs.texture.replace("-", " ")}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs uppercase">Density</dt>
+                <dd className="font-medium">{attrs.density}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-muted-foreground text-xs uppercase">Custom dyeing</dt>
+                <dd className="font-medium">{attrs.custom_dyeing ? "Available" : "Standard colors only"}</dd>
+              </div>
+              <div className="col-span-2 text-xs text-muted-foreground">
+                Wholesale from {format(attrs.wholesale_price)} · MOQ {attrs.wholesale_moq} —{" "}
+                <Link to="/wholesale" className="text-brand underline">
+                  get a quote
+                </Link>
+              </div>
+            </dl>
+          )}
 
           <p className="text-muted-foreground leading-relaxed">{product.description}</p>
 
           <div className="flex items-center gap-4 pt-2">
             <div className="flex items-center border rounded-lg">
-              <button onClick={() => setQty(Math.max(1, qty - 1))} className="p-2 hover:text-brand"><Minus className="h-4 w-4" /></button>
+              <button
+                onClick={() => setQty(Math.max(1, qty - 1))}
+                className="p-2 hover:text-brand"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
               <span className="px-4 font-semibold">{qty}</span>
-              <button onClick={() => setQty(Math.min(product.stock || 99, qty + 1))} className="p-2 hover:text-brand"><Plus className="h-4 w-4" /></button>
+              <button
+                onClick={() => setQty(Math.min(product.stock || 99, qty + 1))}
+                className="p-2 hover:text-brand"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
-            <Button onClick={handleAdd} disabled={product.stock === 0} size="lg" className="flex-1 bg-brand text-brand-foreground hover:opacity-90">
+            <Button
+              onClick={handleAdd}
+              disabled={product.stock === 0}
+              size="lg"
+              className="flex-1 bg-brand text-brand-foreground hover:opacity-90"
+            >
               <ShoppingBag className="h-4 w-4 mr-2" />
               Add to Cart
             </Button>
