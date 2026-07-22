@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme inline {
+  --radius-lg: 0.5rem;
+  --font-display: var(--font-playfair), "Playfair Display", serif;
+  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-sale: var(--sale);
+  --color-secondary: var(--secondary);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.16 0.02 340);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.97 0.015 340);
+  --muted-foreground: oklch(0.5 0.03 340);
+  --accent: oklch(0.95 0.05 5);
+  --border: oklch(0.92 0.01 340);
+  --brand: oklch(0.58 0.24 5);
+  --brand-foreground: oklch(0.99 0.005 340);
+  --brand-soft: oklch(0.95 0.06 5);
+  --sale: oklch(0.62 0.25 30);
+  --secondary: oklch(0.97 0.02 340);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
