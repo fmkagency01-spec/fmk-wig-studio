@@ -85,7 +85,7 @@ function ShopPage() {
     void navigate({
       search: (prev: Record<string, string | undefined>) => {
         const next = { ...prev, [key]: value };
-        if (!value) delete next[key];
+        if (!value) delete next[key as string];
         return next;
       },
     });
