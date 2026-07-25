@@ -60,6 +60,69 @@ export type B2BInquiry = {
   created_at: string;
 };
 
+export type OrderItem = {
+  slug?: string;
+  product_id?: string | null;
+  name?: string;
+  quantity: number;
+  unit_price_bdt?: number;
+  unit_price?: number;
+  subtotal_bdt?: number;
+  subtotal?: number;
+};
+
+export type Order = {
+  id: string;
+  order_number: string;
+  user_id?: string | null;
+  status: "pending" | "paid" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded";
+  payment_status: "unpaid" | "paid" | "failed" | "refunded";
+  payment_provider?: string | null;
+  currency: string;
+  subtotal: number;
+  shipping: number;
+  total: number;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  address_line1?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  items: OrderItem[];
+  notes?: string;
+  lead_origin?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export function appendOrder(order: Order) {
+  const all = readJson<Order[]>("orders.json", []);
+  all.push(order);
+  writeJson("orders.json", all);
+  return order;
+}
+
+export function listOrders(limit = 200) {
+  return readJson<Order[]>("orders.json", []).slice(-limit).reverse();
+}
+
+export function getOrder(id: string) {
+  return readJson<Order[]>("orders.json", []).find((o) => o.id === id) ?? null;
+}
+
+export function updateOrderStatus(
+  id: string,
+  patch: Partial<Pick<Order, "status" | "payment_status" | "payment_provider">>,
+) {
+  const all = readJson<Order[]>("orders.json", []);
+  const idx = all.findIndex((o) => o.id === id);
+  if (idx < 0) return null;
+  all[idx] = { ...all[idx], ...patch, updated_at: new Date().toISOString() };
+  writeJson("orders.json", all);
+  return all[idx];
+}
+
 export function appendAnalytics(event: AnalyticsEvent) {
   const all = readJson<AnalyticsEvent[]>("analytics.json", []);
   all.push(event);

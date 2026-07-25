@@ -24,6 +24,16 @@
 - Next.js stack: `bun install && cd next-app && bun install` then from root `bun run dev:next` → http://localhost:3000 + API :3001
 - API health: `http://localhost:3001/health`
 
+### Backend control plane (monitoring / orders / tracking / payments)
+- The Express API (`api/`) is the stack-agnostic control plane shared by both frontends + FAOS. Endpoints beyond the storefront ones:
+  - Monitoring (guarded by `x-admin-key: $ADMIN_API_KEY` **or** admin Bearer JWT — see `api/lib/adminAuth.ts`): `GET /admin/overview`, `GET /admin/orders`, `GET /admin/analytics/summary`, `GET /orders/:id`, `PATCH /orders/:id/status`.
+  - Orders: `POST /orders` (headless capture; optional JWT attaches `user_id`). Writes to local `api/data/orders.json` + attempts Supabase insert.
+  - Server-side tracking (`api/lib/tracking.ts`): `POST /analytics/events` forwards to Meta CAPI / GA4 MP / TikTok Events API — **env-gated, no-op until IDs/tokens set**. `GET /tracking/config` exposes public pixel IDs to the frontends.
+  - Payments (`api/lib/payments.ts`): `GET /payments/config`, `POST /payments/checkout` — Stripe adapter, **inert until `STRIPE_SECRET_KEY` set** (returns `202 {enabled:false}` so orders still capture as `unpaid`).
+- Env vars for these live in `.env.example` (ADMIN_API_KEY, META_/GA4_/TIKTOK_, STRIPE_*). `ADMIN_API_KEY` must be set or the shared-secret path is disabled (JWT still works).
+- Deploy: Render Blueprint via `render.yaml` + `api/Dockerfile` (Bun runtime). Full guide: `docs/DEPLOY_RENDER.md`. The API reads `API_PORT || PORT` so it binds Render's `PORT`.
+- Full monitoring of Supabase-backed orders/analytics needs `SUPABASE_SERVICE_ROLE_KEY` (publishable key is RLS-limited); the local JSON store always works for overview.
+
 ### Vercel
 - Set project Root Directory to `next-app` (recommended), or use root `vercel.json` install/build commands.
 - Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, optional `JARVIS_WEBHOOK_URL`, `JARVIS_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `USD_PER_BDT`.

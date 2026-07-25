@@ -1,0 +1,56 @@
+# Render Blueprint — FMK WIG control-plane API.
+# Deploy: Render Dashboard → New → Blueprint → pick this repo. Render reads this file.
+# The service runs the Bun Express API (monitoring, orders, tracking, payments).
+#
+# After first deploy, set the secret env vars (marked sync:false) in the Render
+# dashboard. FMK WIG frontends / FAOS point NEXT_PUBLIC_API_URL / API_PROXY_TARGET
+# at this service URL.
+services:
+  - type: web
+    name: fmk-wig-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Supabase (data). Publishable key works read-limited; service role unlocks full monitoring.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      # Control-plane shared secret (FAOS monitoring). Generate: openssl rand -hex 32
+      - key: ADMIN_API_KEY
+        generateValue: true
+      # Display FX (USD per 1 BDT)
+      - key: USD_PER_BDT
+        value: "0.008196"
+      - key: DEFAULT_CURRENCY
+        value: USD
+      # Server-side tracking (optional — inert until set)
+      - key: META_PIXEL_ID
+        sync: false
+      - key: META_CAPI_TOKEN
+        sync: false
+      - key: GA4_MEASUREMENT_ID
+        sync: false
+      - key: GA4_API_SECRET
+        sync: false
+      - key: TIKTOK_PIXEL_ID
+        sync: false
+      - key: TIKTOK_ACCESS_TOKEN
+        sync: false
+      # Payments (optional — inert until set)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Jarvis / FAOS Common Center (optional)
+      - key: JARVIS_WEBHOOK_URL
+        sync: false
+      - key: JARVIS_API_KEY
+        sync: false
