@@ -103,7 +103,7 @@ CREATE POLICY "Anyone can insert analytics"
 DROP POLICY IF EXISTS "Admins read analytics" ON public.analytics_events;
 CREATE POLICY "Admins read analytics"
   ON public.analytics_events FOR SELECT TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'));
+  USING (private.has_role(auth.uid(), 'admin'));
 
 -- B2B bulk inquiries + quote requests
 CREATE TABLE IF NOT EXISTS public.b2b_inquiries (
@@ -139,8 +139,8 @@ CREATE POLICY "Anyone can submit B2B inquiry"
 DROP POLICY IF EXISTS "Admins manage B2B inquiries" ON public.b2b_inquiries;
 CREATE POLICY "Admins manage B2B inquiries"
   ON public.b2b_inquiries FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+  USING (private.has_role(auth.uid(), 'admin'))
+  WITH CHECK (private.has_role(auth.uid(), 'admin'));
 
 CREATE TRIGGER trg_b2b_inquiries_updated
   BEFORE UPDATE ON public.b2b_inquiries
