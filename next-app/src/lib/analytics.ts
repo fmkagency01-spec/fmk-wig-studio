@@ -31,6 +31,33 @@ export function detectLeadOrigin(referrer?: string | null): string {
   return "referral";
 }
 
+/** Map internal event names to ad-platform standard events and fire browser pixels. */
+function firePixel(eventName: string, data?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as {
+    fbq?: (...a: unknown[]) => void;
+    gtag?: (...a: unknown[]) => void;
+    ttq?: { track?: (e: string, d?: unknown) => void };
+  };
+  const map: Record<string, { meta?: string; ga4?: string; tiktok?: string }> = {
+    product_view: { meta: "ViewContent", ga4: "view_item", tiktok: "ViewContent" },
+    add_to_cart: { meta: "AddToCart", ga4: "add_to_cart", tiktok: "AddToCart" },
+    begin_checkout: { meta: "InitiateCheckout", ga4: "begin_checkout", tiktok: "InitiateCheckout" },
+    purchase: { meta: "Purchase", ga4: "purchase", tiktok: "CompletePayment" },
+    b2b_inquiry_submitted: { meta: "Lead", ga4: "generate_lead", tiktok: "SubmitForm" },
+    b2b_quote_generated: { meta: "Lead", ga4: "generate_lead", tiktok: "SubmitForm" },
+  };
+  const std = map[eventName];
+  if (!std) return;
+  try {
+    if (std.meta && w.fbq) w.fbq("track", std.meta, data);
+    if (std.ga4 && w.gtag) w.gtag("event", std.ga4, data);
+    if (std.tiktok && w.ttq?.track) w.ttq.track(std.tiktok, data);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function trackEvent(payload: {
   event_name: string;
   page_path?: string;
@@ -41,6 +68,7 @@ export async function trackEvent(payload: {
   country?: string;
 }): Promise<void> {
   if (typeof window === "undefined") return;
+  firePixel(payload.event_name, { currency: payload.currency, ...payload.metadata });
   try {
     await fetch(`${apiBase()}/analytics/events`, {
       method: "POST",

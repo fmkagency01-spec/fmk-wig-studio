@@ -1,7 +1,21 @@
+import type { Metadata } from "next";
 import { fetchProducts, fetchCategories } from "@/lib/supabase";
+import { languageAlternates } from "@/lib/seo";
 import { ShopClient } from "./shop-client";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Shop Wigs — Human Hair, Lace Front & Synthetic",
+  description:
+    "Browse premium wigs and hair systems. Filter by hair type, cap size, texture and density. Worldwide shipping with BDT / USD pricing.",
+  alternates: { canonical: "/shop", languages: languageAlternates("/shop") },
+  openGraph: {
+    title: "Shop Wigs — FMK WIG",
+    description: "Premium human hair & synthetic wigs. Filter by type, texture, density. Worldwide shipping.",
+    url: "/shop",
+  },
+};
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

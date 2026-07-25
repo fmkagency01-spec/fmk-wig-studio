@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
+import { useIsAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -9,6 +10,7 @@ import Link from "next/link";
 
 export default function AccountPage() {
   const { user, ready } = useAuth();
+  const { isAdmin } = useIsAdmin();
   const router = useRouter();
 
   useEffect(() => {
@@ -22,10 +24,15 @@ export default function AccountPage() {
       <h1 className="text-3xl font-bold">My Account</h1>
       <p className="text-sm text-muted-foreground">{user.email}</p>
       <p className="text-xs text-muted-foreground break-all">User ID (JWT sub): {user.id}</p>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Link href="/shop" className="rounded-md border px-4 py-2 text-sm">
           Continue shopping
         </Link>
+        {isAdmin && (
+          <Link href="/admin" className="rounded-md border border-brand text-brand px-4 py-2 text-sm font-medium">
+            Admin dashboard
+          </Link>
+        )}
         <button
           className="rounded-md bg-brand px-4 py-2 text-sm text-brand-foreground"
           onClick={async () => {
