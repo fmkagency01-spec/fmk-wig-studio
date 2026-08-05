@@ -1,4 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  FALLBACK_CATEGORIES,
+  fallbackProductBySlug,
+  fallbackProducts,
+} from "@/lib/catalog-fallback";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -51,27 +56,47 @@ function mapProduct(p: Record<string, unknown>): Product {
 }
 
 export async function fetchProducts(opts?: { featured?: boolean; categoryId?: string | null }) {
-  let q = supabase.from("products").select("*").eq("active", true).order("created_at", { ascending: false });
-  if (opts?.featured) q = q.eq("featured", true);
-  if (opts?.categoryId) q = q.eq("category_id", opts.categoryId);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data || []).map((row) => mapProduct(row as Record<string, unknown>));
+  try {
+    let q = supabase.from("products").select("*").eq("active", true).order("created_at", { ascending: false });
+    if (opts?.featured) q = q.eq("featured", true);
+    if (opts?.categoryId) q = q.eq("category_id", opts.categoryId);
+    const { data, error } = await q;
+    if (error) throw error;
+    const mapped = (data || []).map((row) => mapProduct(row as Record<string, unknown>));
+    if (mapped.length === 0) return fallbackProducts(opts);
+    return mapped;
+  } catch {
+    return fallbackProducts(opts);
+  }
 }
 
 export async function fetchProductBySlug(slug: string) {
-  const { data, error } = await supabase.from("products").select("*").eq("slug", slug).maybeSingle();
-  if (error) throw error;
-  return data ? mapProduct(data as Record<string, unknown>) : null;
+  try {
+    const { data, error } = await supabase.from("products").select("*").eq("slug", slug).maybeSingle();
+    if (error) throw error;
+    if (data) return mapProduct(data as Record<string, unknown>);
+  } catch {
+    /* fall through */
+  }
+  return fallbackProductBySlug(slug);
 }
 
 export async function fetchCategories() {
-  const { data, error } = await supabase.from("categories").select("*").order("sort_order");
-  if (error) throw error;
-  return (data || []) as Category[];
+  try {
+    const { data, error } = await supabase.from("categories").select("*").order("sort_order");
+    if (error) throw error;
+    if (data && data.length > 0) return data as Category[];
+  } catch {
+    /* fall through */
+  }
+  return FALLBACK_CATEGORIES;
 }
 
 export async function fetchBrandSettings() {
-  const { data } = await supabase.from("site_settings").select("value").eq("key", "brand").maybeSingle();
-  return (data?.value as Record<string, string> | undefined) ?? {};
+  try {
+    const { data } = await supabase.from("site_settings").select("value").eq("key", "brand").maybeSingle();
+    return (data?.value as Record<string, string> | undefined) ?? {};
+  } catch {
+    return {};
+  }
 }

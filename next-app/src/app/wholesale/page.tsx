@@ -204,7 +204,7 @@ export default function WholesalePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-4 pb-16">
+      <section id="inquiry" className="mx-auto max-w-3xl px-4 pb-16 scroll-mt-24">
         <h2 className="text-2xl font-bold mb-2">Bulk Inquiry</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Lead origin (Google / LinkedIn / referral) is tracked automatically and synced to Jarvis when

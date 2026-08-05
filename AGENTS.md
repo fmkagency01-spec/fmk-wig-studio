@@ -24,6 +24,11 @@
 - Next.js stack: `bun install && cd next-app && bun install` then from root `bun run dev:next` → http://localhost:3000 + API :3001
 - API health: `http://localhost:3001/health`
 
+### FAOS / Jarvis agent ops
+- Connection pack + daily workflows for FAOS agents (monitor, orders, leads, ads, devops): `docs/FAOS_AGENT_PLAYBOOK.md` and `docs/faos-connection.example.json`.
+- Agents authenticate with `x-admin-key: $ADMIN_API_KEY` against the Render API. Set `JARVIS_WEBHOOK_URL` on Render so orders/quotes/inquiries auto-push into FAOS.
+- Next.js storefront falls back to a local catalog (`next-app/src/lib/catalog-fallback.ts`) if Supabase RLS/network fails — so a DB grant issue never blanks the brand site. Still apply `supabase/migrations/20260725091500_fix_anon_storefront_has_role_grants.sql` for live DB product data.
+
 ### Backend control plane (monitoring / orders / tracking / payments)
 - The Express API (`api/`) is the stack-agnostic control plane shared by both frontends + FAOS. Endpoints beyond the storefront ones:
   - Monitoring (guarded by `x-admin-key: $ADMIN_API_KEY` **or** admin Bearer JWT — see `api/lib/adminAuth.ts`): `GET /admin/overview`, `GET /admin/orders`, `GET /admin/analytics/summary`, `GET /orders/:id`, `PATCH /orders/:id/status`.

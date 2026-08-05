@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { CurrencyProvider } from "@/lib/currency";
 import { Header } from "@/components/Header";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TrackingScripts } from "@/components/TrackingScripts";
 import { SITE, absUrl, languageAlternates, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const playfair = Playfair_Display({
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-playfair",
+  weight: ["500", "600", "700"],
+  variable: "--font-cormorant",
 });
 
 export const metadata: Metadata = {
@@ -59,17 +60,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
       </head>
-      <body className={`${inter.variable} ${playfair.variable} min-h-screen flex flex-col antialiased`}>
+      <body className={`${dmSans.variable} ${cormorant.variable} min-h-screen flex flex-col antialiased`}>
         <TrackingScripts />
         <CurrencyProvider>
           <Header />
           <main className="flex-1">{children}</main>
-          <footer className="mt-16 border-t bg-secondary">
-            <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-muted-foreground flex flex-wrap justify-between gap-2">
-              <span>© {new Date().getFullYear()} FMK WIG. All rights reserved.</span>
-              <span>Retail + Wholesale · BDT / USD · Jarvis-ready</span>
-            </div>
-          </footer>
+          <SiteFooter />
           <Toaster position="top-center" richColors />
         </CurrencyProvider>
       </body>
