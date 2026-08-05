@@ -1,0 +1,33 @@
+{
+  "$schema_comment": "Copy to FAOS secrets vault as fmk-wig-connection.json. Never commit real keys.",
+  "brand": "FMK WIG",
+  "source": "fmk-wig",
+  "api": {
+    "base_url": "https://REPLACE_WITH_RENDER_URL.onrender.com",
+    "health_path": "/health",
+    "admin_overview_path": "/admin/overview",
+    "admin_orders_path": "/admin/orders",
+    "admin_analytics_path": "/admin/analytics/summary",
+    "auth": {
+      "type": "header",
+      "header_name": "x-admin-key",
+      "secret_env": "ADMIN_API_KEY"
+    }
+  },
+  "jarvis": {
+    "webhook_env": "JARVIS_WEBHOOK_URL",
+    "api_key_env": "JARVIS_API_KEY",
+    "event_types": ["order", "catalog", "b2b_inquiry", "quote"]
+  },
+  "frontend": {
+    "next_public_site_url_env": "NEXT_PUBLIC_SITE_URL",
+    "admin_ui_path": "/admin",
+    "wholesale_path": "/wholesale"
+  },
+  "workflows": [
+    { "id": "ops-monitor", "cron": "*/15 * * * *", "endpoint": "/admin/overview" },
+    { "id": "order-tracker", "trigger": "jarvis.order", "patch": "/orders/:id/status" },
+    { "id": "lead-agent", "trigger": "jarvis.b2b_inquiry" },
+    { "id": "ads-agent", "endpoint": "/admin/analytics/summary" }
+  ]
+}

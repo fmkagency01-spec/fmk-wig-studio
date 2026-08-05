@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 import { useCurrency, type CurrencyCode } from "@/lib/currency";
+
+const NAV = [
+  { href: "/shop", label: "Shop" },
+  { href: "/wholesale", label: "Wholesale" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
+];
 
 export function Header({ brandName = "FMK WIG" }: { brandName?: string }) {
   const { count } = useCart();
@@ -18,50 +25,48 @@ export function Header({ brandName = "FMK WIG" }: { brandName?: string }) {
   useEffect(() => setOpen(false), [pathname]);
 
   const toggle = (c: CurrencyCode) => setCurrency(c);
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <header className="sticky top-0 z-50 bg-background border-b">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
       <div className="mx-auto max-w-7xl px-4 h-16 flex items-center justify-between gap-4">
-        <button className="md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">
+        <button className="md:hidden p-1" onClick={() => setOpen(!open)} aria-label="Menu">
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
 
-        <Link href="/" className="font-display text-2xl font-bold tracking-tight text-brand">
+        <Link href="/" className="font-display text-2xl md:text-3xl font-bold tracking-tight text-brand">
           {brandName}
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-          <Link href="/" className="hover:text-brand">
-            Home
-          </Link>
-          <Link href="/shop" className="hover:text-brand">
-            Shop
-          </Link>
-          <Link href="/wholesale" className="hover:text-brand">
-            Wholesale
-          </Link>
+        <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={isActive(item.href) ? "text-brand" : "text-foreground/80 hover:text-brand"}
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex items-center gap-1">
-          <div className="hidden sm:flex items-center mr-1 rounded-full border text-[11px] font-semibold overflow-hidden">
+          <div className="hidden sm:flex items-center mr-2 border text-[11px] font-semibold overflow-hidden">
             <button
               type="button"
               onClick={() => toggle("BDT")}
-              className={`px-2 py-1 ${currency === "BDT" ? "bg-brand text-brand-foreground" : "hover:bg-accent"}`}
+              className={`px-2.5 py-1 ${currency === "BDT" ? "bg-brand text-brand-foreground" : "hover:bg-accent"}`}
             >
               ৳
             </button>
             <button
               type="button"
               onClick={() => toggle("USD")}
-              className={`px-2 py-1 ${currency === "USD" ? "bg-brand text-brand-foreground" : "hover:bg-accent"}`}
+              className={`px-2.5 py-1 ${currency === "USD" ? "bg-brand text-brand-foreground" : "hover:bg-accent"}`}
             >
               $
             </button>
           </div>
-          <Link href="/shop" aria-label="Search" className="p-2 hover:text-brand">
-            <Search className="h-5 w-5" />
-          </Link>
           <Link href={user ? "/account" : "/auth"} aria-label="Account" className="p-2 hover:text-brand">
             <User className="h-5 w-5" />
           </Link>
@@ -77,10 +82,12 @@ export function Header({ brandName = "FMK WIG" }: { brandName?: string }) {
       </div>
 
       {open && (
-        <nav className="md:hidden border-t px-4 py-3 flex flex-col gap-2 text-sm">
-          <Link href="/">Home</Link>
-          <Link href="/shop">Shop</Link>
-          <Link href="/wholesale">Wholesale / B2B</Link>
+        <nav className="md:hidden border-t px-4 py-4 flex flex-col gap-3 text-sm font-medium">
+          {NAV.map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
           <Link href={user ? "/account" : "/auth"}>{user ? "Account" : "Sign in"}</Link>
         </nav>
       )}
