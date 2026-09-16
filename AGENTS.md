@@ -53,3 +53,10 @@
 - `next-app/.env.local` is gitignored (no template is committed) and is **not** recreated by the update script. The Next app loads env only from its own dir, so create it with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (mirror root `.env`), plus optional `NEXT_PUBLIC_API_URL=/api`, `NEXT_PUBLIC_USD_PER_BDT`, `API_PROXY_TARGET=http://127.0.0.1:3001`. Without it the Next pages still render but Supabase auth/data calls fail.
 - Port note: `bun run dev` (Vite) and `bun run dev:next` both start the API on `:3001`, so don't run both at once. To run the Vite and Next frontends together, start one full stack (e.g. `bun run dev:next`) and add the other frontend only via `bun run dev:web` (Vite, no API).
 - Lovable MCP project import (`a65f329d-…`) requires authenticating the Lovable MCP server in Cursor; until then we refine the in-repo Lovable components directly.
+
+## Multi-agent division of labor
+
+- **Claude ("Jarvis"):** Owns cross-repository strategy, Vercel projects, domains and DNS, business email, and infrastructure decisions. Jarvis operates cloud-side and has no shell access on this machine.
+- **Codex:** Handles local or VPS execution when asked, code changes, Git branches, and pull requests. Codex must never push directly to `main`, force-push, or rewrite Lovable-synced history.
+- **Cursor / Cursor Cloud:** Handles ongoing frontend and UI iteration according to the existing **Cursor Cloud specific instructions** section above.
+- **Shared coordination rule:** Whoever starts work on a branch must announce it before another agent touches the same files.
