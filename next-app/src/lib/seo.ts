@@ -1,14 +1,43 @@
 /**
  * Central SEO / GEO configuration.
  *
- * `NEXT_PUBLIC_SITE_URL` should be the canonical production origin (e.g.
- * https://fmkwig.com). Falls back to a sensible default for local/dev.
+ * Explicit canonical origin wins over Vercel deployment origins.
+ * Localhost is only a fallback for local development.
  */
+
+function resolveSiteUrl(): string {
+  const configured =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    process.env.VERCEL_URL?.trim() ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+
+  if (!configured) {
+    if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
+      return "http://localhost:3000";
+    }
+    throw new Error(
+      "Set NEXT_PUBLIC_SITE_URL, VERCEL_URL, or VERCEL_PROJECT_PRODUCTION_URL before building or serving the storefront.",
+    );
+  }
+
+  const normalized = /^https?:\/\//i.test(configured)
+    ? configured
+    : `https://${configured}`;
+  const url = new URL(normalized);
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username || url.password || url.search || url.hash ||
+    url.pathname.replace(/\/+$/, "")
+  ) {
+    throw new Error("The site URL must be an HTTP(S) origin without credentials, a path, query, or fragment.");
+  }
+  return url.origin;
+}
 
 export const SITE = {
   name: "FMK WIG",
   legalName: "FMK WIG",
-  url: (process.env.NEXT_PUBLIC_SITE_URL || "https://fmkwig.com").replace(/\/$/, ""),
+  url: resolveSiteUrl(),
   description:
     "FMK WIG — premium human hair & synthetic wigs, lace fronts, and wholesale hair systems. Retail + B2B wholesale with instant quotes, worldwide shipping, and multi-currency (BDT / USD).",
   locale: "en",
