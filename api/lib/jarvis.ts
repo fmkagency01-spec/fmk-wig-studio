@@ -13,7 +13,7 @@ export type JarvisPayload = {
 export async function pushToJarvis(payload: JarvisPayload): Promise<{ ok: boolean; skipped?: boolean; status?: number }> {
   const url = process.env.JARVIS_WEBHOOK_URL;
   if (!url) {
-    return { ok: true, skipped: true };
+    return { ok: false, skipped: true };
   }
 
   const headers: Record<string, string> = {
@@ -23,11 +23,17 @@ export async function pushToJarvis(payload: JarvisPayload): Promise<{ ok: boolea
   const apiKey = process.env.JARVIS_API_KEY;
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
+  try {
   const res = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
   });
-
-  return { ok: res.ok, status: res.status };
+  const body = await res.json().catch(() => null);
+  return { ok: res.ok && body?.ok === true, status: res.status };
+  } catch {
+    // A saved inquiry must not become a failed submission when notification fails.
+    return { ok: false };
+  }
 }

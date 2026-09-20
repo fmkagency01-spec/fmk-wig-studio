@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyBearerUser } from "./supabase.ts";
+import { getSupabaseAdmin, verifyBearerUser } from "./supabase.ts";
 
 /**
  * Guard for monitoring / control-plane endpoints.
@@ -7,10 +7,10 @@ import { verifyBearerUser } from "./supabase.ts";
  * Accepts EITHER:
  *  - a shared secret header `x-admin-key: <ADMIN_API_KEY>` (for FAOS server-to-server
  *    monitoring / automation), or
- *  - a valid Supabase Bearer JWT (for the browser admin panel).
+ *  - a verified Supabase user with a server-stored admin role.
  *
  * If `ADMIN_API_KEY` is not configured, the shared-secret path is disabled and only
- * a valid JWT is accepted. This prevents an unprotected control plane in production.
+ * a verified admin is accepted. A customer JWT never grants admin access.
  */
 export async function requireAdminKey(req: Request, res: Response, next: NextFunction) {
   try {
@@ -25,6 +25,13 @@ export async function requireAdminKey(req: Request, res: Response, next: NextFun
 
     const user = await verifyBearerUser(req.header("authorization"));
     if (user) {
+      const sb = getSupabaseAdmin();
+      const role = sb && await sb.from("user_roles").select("role")
+        .eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!role || role.error || role.data?.role !== "admin") {
+        res.status(403).json({ error: "Admin role required" });
+        return;
+      }
       (req as Request & { adminVia: string; user: typeof user }).adminVia = "jwt";
       (req as Request & { user: typeof user }).user = user;
       next();

@@ -1,0 +1,19 @@
+name: Wholesale integrity
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test api/wholesale.test.mjs
+      - run: npx tsc --noEmit --strict --allowImportingTsExtensions --module nodenext --moduleResolution nodenext --target es2022 --esModuleInterop --skipLibCheck api/index.ts

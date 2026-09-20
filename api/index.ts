@@ -13,6 +13,7 @@ import {
   markInquiryJarvisSynced,
   updateOrderStatus,
   type Order,
+  type B2BInquiry,
 } from "./lib/store.ts";
 import { getSupabaseAdmin, verifyBearerUser } from "./lib/supabase.ts";
 import { requireJwt } from "./lib/jwt.ts";
@@ -164,7 +165,7 @@ export function createApiApp() {
     res.json(publicTrackingConfig());
   });
 
-  app.get("/analytics/events", requireJwt, async (req, res) => {
+  app.get("/analytics/events", requireAdminKey, async (req, res) => {
     res.json({ events: listAnalytics(Number(req.query.limit) || 100) });
   });
 
@@ -175,11 +176,11 @@ export function createApiApp() {
         .array(
           z.object({
             slug: z.string(),
-            quantity: z.number().int().positive(),
+            quantity: z.number().int().positive().max(10000),
             wholesale_price_bdt: z.number().positive().optional(),
           }),
         )
-        .min(1),
+        .min(1).max(100),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -190,11 +191,14 @@ export function createApiApp() {
     const currency = parsed.data.currency;
     const lines = parsed.data.items.map((item) => {
       const catalog = PRODUCT_WHOLESALE[item.slug];
-      const unitBase = item.wholesale_price_bdt ?? catalog?.wholesale_price ?? 0;
+      const unitBase = catalog?.wholesale_price ?? 0;
       if (!unitBase) {
         return { slug: item.slug, error: "Unknown product" as const };
       }
       const discount = tierDiscount(item.quantity);
+      if (item.quantity < catalog.moq) {
+        return { slug: item.slug, error: "Minimum order quantity not met" as const };
+      }
       const unitBdt = Math.round(unitBase * (1 - discount));
       const subtotalBdt = unitBdt * item.quantity;
       return {
@@ -212,7 +216,7 @@ export function createApiApp() {
     });
 
     if (lines.some((l) => "error" in l)) {
-      res.status(400).json({ error: "One or more products are unknown", lines });
+      res.status(400).json({ error: "Invalid product or minimum order quantity", lines });
       return;
     }
 
@@ -237,9 +241,11 @@ export function createApiApp() {
       lines: typed,
       total_bdt: totalBdt,
       total: convertBdt(totalBdt, currency),
-      valid_for_hours: 72,
+      approval_required: true,
+      status: "indicative_estimate",
+      valid_for_hours: 0,
       notes:
-        "Wholesale pricing for salons & distributors. Final invoice may include shipping & duties.",
+        "Indicative estimate only, not an accepted quotation or order. Our team must confirm price, stock, shipping and duties.",
     };
 
     void pushToJarvis({
@@ -265,7 +271,7 @@ export function createApiApp() {
       notes: z.string().optional(),
       currency: z.enum(["BDT", "USD"]).default("BDT"),
       estimated_total: z.number().optional(),
-      items: z.array(z.record(z.unknown())).default([]),
+      items: z.array(z.object({ slug: z.string().max(120), quantity: z.number().int().positive().max(10000) })).max(100).default([]),
       session_id: z.string().optional(),
     });
     const parsed = schema.safeParse(req.body);
@@ -274,7 +280,11 @@ export function createApiApp() {
       return;
     }
 
-    const inquiry = appendInquiry({
+    if (parsed.data.items.some((item) => !Object.hasOwn(PRODUCT_WHOLESALE, item.slug))) {
+      res.status(400).json({ error: "Unknown product" });
+      return;
+    }
+    const inquiry: B2BInquiry = {
       id: randomUUID(),
       company_name: parsed.data.company_name,
       contact_name: parsed.data.contact_name,
@@ -286,16 +296,23 @@ export function createApiApp() {
       lead_origin: parsed.data.lead_origin,
       items: parsed.data.items,
       notes: parsed.data.notes,
-      estimated_total: parsed.data.estimated_total,
+      // Customer totals are not authoritative; staff issue the actual quotation.
+      estimated_total: undefined,
       currency: parsed.data.currency,
       status: "new",
       jarvis_synced_at: null,
       created_at: new Date().toISOString(),
-    });
+    };
 
     const sb = getSupabaseAdmin();
+    // Production must acknowledge a durable database write, never ephemeral JSON.
+    if (process.env.NODE_ENV === "production" && (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+      res.status(503).json({ ok: false, error: "Inquiry service temporarily unavailable" });
+      return;
+    }
     if (sb) {
-      void sb.from("b2b_inquiries").insert({
+      const saved = await sb.from("b2b_inquiries").insert({
+        id: inquiry.id,
         company_name: inquiry.company_name,
         contact_name: inquiry.contact_name,
         email: inquiry.email,
@@ -310,6 +327,12 @@ export function createApiApp() {
         currency: inquiry.currency,
         status: inquiry.status,
       });
+      if (saved.error) {
+        res.status(503).json({ ok: false, error: "Inquiry could not be saved. Please retry later." });
+        return;
+      }
+    } else {
+      appendInquiry(inquiry);
     }
 
     const jarvis = await pushToJarvis({
@@ -319,10 +342,14 @@ export function createApiApp() {
       data: inquiry as unknown as Record<string, unknown>,
     });
     if (jarvis.ok && !jarvis.skipped) {
-      markInquiryJarvisSynced(inquiry.id);
+      if (sb) {
+        await sb.from("b2b_inquiries").update({ jarvis_synced_at: new Date().toISOString() }).eq("id", inquiry.id);
+      } else {
+        markInquiryJarvisSynced(inquiry.id);
+      }
     }
 
-    appendAnalytics({
+    try { appendAnalytics({
       id: randomUUID(),
       event_name: "b2b_inquiry_submitted",
       session_id: parsed.data.session_id,
@@ -332,12 +359,26 @@ export function createApiApp() {
       currency: parsed.data.currency,
       metadata: { inquiry_id: inquiry.id, company: inquiry.company_name },
       created_at: new Date().toISOString(),
-    });
+    }); } catch { /* Analytics must not invalidate an acknowledged inquiry. */ }
 
     res.status(201).json({ ok: true, inquiry_id: inquiry.id, jarvis });
   });
 
-  app.get("/b2b/inquiries", requireJwt, async (_req, res) => {
+  app.get("/b2b/inquiries", requireAdminKey, async (_req, res) => {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      const result = await sb.from("b2b_inquiries").select("*").order("created_at", { ascending: false }).limit(200);
+      if (result.error) {
+        res.status(503).json({ ok: false, error: "Inquiry service unavailable" });
+        return;
+      }
+      res.json({ inquiries: result.data });
+      return;
+    }
+    if (process.env.NODE_ENV === "production") {
+      res.status(503).json({ ok: false, error: "Inquiry service unavailable" });
+      return;
+    }
     res.json({ inquiries: listInquiries() });
   });
 
@@ -373,7 +414,7 @@ export function createApiApp() {
     res.json({ items });
   });
 
-  app.post("/jarvis/sync-catalog", requireJwt, async (_req, res) => {
+  app.post("/jarvis/sync-catalog", requireAdminKey, async (_req, res) => {
     const items = Object.entries(PRODUCT_WHOLESALE).map(([slug, p]) => ({ slug, ...p }));
     const result = await pushToJarvis({
       type: "catalog",
@@ -484,7 +525,7 @@ export function createApiApp() {
   });
 
   app.get("/orders/:id", requireAdminKey, (req, res) => {
-    const order = getOrder(req.params.id);
+    const order = getOrder(String(req.params.id));
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
@@ -504,7 +545,7 @@ export function createApiApp() {
       res.status(400).json({ error: "Provide status and/or payment_status" });
       return;
     }
-    const updated = updateOrderStatus(req.params.id, parsed.data);
+    const updated = updateOrderStatus(String(req.params.id), parsed.data);
     if (!updated) {
       res.status(404).json({ error: "Order not found" });
       return;
