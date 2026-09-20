@@ -1,0 +1,35 @@
+name: Next.js security build
+on:
+  pull_request:
+    paths:
+      - 'next-app/**'
+      - '.github/workflows/next-security-build.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'next-app/**'
+      - '.github/workflows/next-security-build.yml'
+permissions:
+  contents: read
+jobs:
+  next-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-app
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Build fixtures only; never connect CI to production customer data.
+      NEXT_PUBLIC_SITE_URL: https://storefront.example.invalid
+      NEXT_PUBLIC_SUPABASE_URL: https://database.example.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test-only-public-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - run: bun run build
