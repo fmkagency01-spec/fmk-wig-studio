@@ -1,0 +1,39 @@
+name: Wholesale integrity
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test api/wholesale.test.mjs
+      - run: npx tsc --noEmit --strict --allowImportingTsExtensions --module nodenext --moduleResolution nodenext --target es2022 --esModuleInterop --skipLibCheck api/index.ts
+  storefront-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-app
+    env:
+      # Non-production fixtures: compilation does not prove a live backend.
+      NEXT_PUBLIC_SITE_URL: https://storefront.example.invalid
+      NEXT_PUBLIC_SUPABASE_URL: https://database.example.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test-only-public-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - run: bun run build

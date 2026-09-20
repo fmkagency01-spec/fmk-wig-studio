@@ -71,7 +71,7 @@ function WholesalePage() {
       });
       setQuote(result);
       void trackEvent({ event_name: "b2b_quote_generated", currency, metadata: { quote_id: result.quote_id } });
-      toast.success(`Quote ${result.quote_id} ready`);
+      toast.success(`Estimate ${result.quote_id} ready — team approval required`);
     } catch (e: any) {
       toast.error(e.message || "Quote failed");
     }
@@ -229,11 +229,11 @@ function WholesalePage() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button onClick={generateQuote} className="bg-brand text-brand-foreground">
-            Generate formal quote
+            Get indicative estimate
           </Button>
           {quote && (
             <span className="text-sm text-muted-foreground self-center">
-              Quote <strong>{quote.quote_id}</strong> · valid {quote.valid_for_hours}h · API total{" "}
+              Estimate <strong>{quote.quote_id}</strong> · team confirmation required · API total{" "}
               {currency === "USD" ? `$${quote.total}` : `৳${quote.total}`}
             </span>
           )}

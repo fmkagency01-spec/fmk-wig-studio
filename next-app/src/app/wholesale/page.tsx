@@ -62,7 +62,7 @@ export default function WholesalePage() {
         currency,
         metadata: { quote_id: result.quote_id },
       });
-      toast.success(`Quote ${result.quote_id} ready`);
+      toast.success(`Estimate ${result.quote_id} ready — team approval required`);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Quote failed");
     }
@@ -194,11 +194,11 @@ export default function WholesalePage() {
             onClick={generateQuote}
             className="h-11 rounded-md bg-brand px-6 text-sm font-medium text-brand-foreground"
           >
-            Generate formal quote
+            Get indicative estimate
           </button>
           {quote && (
             <span className="text-sm text-muted-foreground">
-              Quote <strong>{quote.quote_id}</strong> · valid {quote.valid_for_hours}h
+              Estimate <strong>{quote.quote_id}</strong> · price and availability need team confirmation
             </span>
           )}
         </div>
