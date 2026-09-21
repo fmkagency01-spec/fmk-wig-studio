@@ -95,12 +95,29 @@ export function createApiApp() {
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: "1mb" }));
 
+  // Public-key-only production mode must not acknowledge ephemeral writes or
+  // present an empty local admin store as a verified database result.
+  app.use((req, res, next) => {
+    const protectedPaths = ["/orders", "/b2b/inquiries", "/admin", "/analytics/events", "/payments/checkout", "/jarvis"];
+    if (process.env.NODE_ENV === "production" &&
+        !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() &&
+        protectedPaths.some((path) => req.path === path || req.path.startsWith(path + "/"))) {
+      console.warn(`[fmk-api] blocked_on_service_role ${req.method} ${req.path}`);
+      res.status(503).json({ ok: false, code: "blocked_on_service_role", error: "This operation requires server-side database credentials; no data was saved." });
+      return;
+    }
+    next();
+  });
+
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
       service: "fmk-wig-api",
       jarvis: Boolean(process.env.JARVIS_WEBHOOK_URL),
       supabase: Boolean(getSupabaseAdmin()),
+      database_connectivity: "not_checked",
+      service_role_configured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
+      mode: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ? "server_credentials_configured" : "public_catalog_only",
     });
   });
 
