@@ -77,6 +77,20 @@ test('wholesale API integrity and access boundaries', async (t) => {
     process.env.NODE_ENV = 'production';
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     assert.equal((await post('/b2b/inquiries', inquiry)).status, 503);
+    for (const [method, path] of [
+      ['POST', '/orders'], ['GET', '/orders/test'], ['PATCH', '/orders/test/status'],
+      ['GET', '/b2b/inquiries'], ['GET', '/admin/overview'], ['GET', '/admin/orders'],
+      ['GET', '/admin/analytics/summary'], ['POST', '/analytics/events'],
+      ['GET', '/analytics/events'], ['POST', '/payments/checkout'],
+      ['POST', '/jarvis/sync-order'], ['POST', '/jarvis/sync-catalog'],
+    ]) {
+      const blocked = await fetch(base + path, { method });
+      assert.equal(blocked.status, 503, `${method} ${path}`);
+      assert.equal((await blocked.json()).code, 'blocked_on_service_role');
+    }
+    const health = await fetch(base + '/health');
+    assert.equal(health.status, 200);
+    assert.equal((await health.json()).mode, 'public_catalog_only');
     process.env.NODE_ENV = 'test';
   });
 });
