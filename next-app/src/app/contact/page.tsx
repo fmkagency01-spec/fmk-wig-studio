@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { submitB2BInquiry, trackEvent } from "@/lib/analytics";
+import { submitB2BInquiry } from "@/lib/analytics";
 import { toast } from "sonner";
 
 export default function ContactPage() {
@@ -18,27 +18,17 @@ export default function ContactPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (form.subject === "wholesale") {
-        await submitB2BInquiry({
-          company_name: form.name || "Contact form",
-          contact_name: form.name,
-          email: form.email,
-          phone: form.phone,
-          business_type: "inquiry",
-          notes: form.message,
-          currency: "USD",
-          items: [],
-        });
-      } else {
-        await trackEvent({
-          event_name: "contact_form_submitted",
-          metadata: {
-            email: form.email,
-            subject: form.subject,
-            message: form.message.slice(0, 500),
-          },
-        });
-      }
+      // All contact topics need a saved inquiry, not a best-effort analytics event.
+      await submitB2BInquiry({
+        company_name: form.name || "Contact form",
+        contact_name: form.name,
+        email: form.email,
+        phone: form.phone,
+        business_type: form.subject === "wholesale" ? "inquiry" : "contact",
+        notes: `Topic: ${form.subject}\n\n${form.message}`,
+        currency: "USD",
+        items: [],
+      });
       toast.success("Message received — we'll get back to you shortly.");
       setForm({ name: "", email: "", phone: "", subject: "general", message: "" });
     } catch (err) {

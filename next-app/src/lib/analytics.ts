@@ -58,6 +58,7 @@ function firePixel(eventName: string, data?: Record<string, unknown>) {
   }
 }
 
+/** Best-effort telemetry only; never use as a receipt for a customer submission. */
 export async function trackEvent(payload: {
   event_name: string;
   page_path?: string;
@@ -101,7 +102,11 @@ export async function submitB2BInquiry(body: Record<string, unknown>) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || "Failed to submit inquiry");
   }
-  return res.json();
+  const result = await res.json();
+  if (result?.ok !== true || typeof result.inquiry_id !== "string" || !result.inquiry_id.trim()) {
+    throw new Error("Your message could not be confirmed as saved. Please try again later.");
+  }
+  return result;
 }
 
 export async function requestQuote(body: {

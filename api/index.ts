@@ -97,12 +97,11 @@ export function createApiApp() {
 
   // Public-key-only production mode must not acknowledge ephemeral writes or
   // present an empty local admin store as a verified database result.
-  app.use((req, res, next) => {
-    const protectedPaths = ["/orders", "/b2b/inquiries", "/admin", "/analytics/events", "/payments/checkout", "/jarvis"];
+  // Mount through Express so the guard and handlers share case-insensitive routing.
+  app.use(["/orders", "/b2b/inquiries", "/admin", "/analytics/events", "/payments/checkout", "/jarvis"], (req, res, next) => {
     if (process.env.NODE_ENV === "production" &&
-        !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() &&
-        protectedPaths.some((path) => req.path === path || req.path.startsWith(path + "/"))) {
-      console.warn(`[fmk-api] blocked_on_service_role ${req.method} ${req.path}`);
+        !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+      console.warn(`[fmk-api] blocked_on_service_role ${req.method} ${req.baseUrl}${req.path}`);
       res.status(503).json({ ok: false, code: "blocked_on_service_role", error: "This operation requires server-side database credentials; no data was saved." });
       return;
     }
@@ -323,7 +322,7 @@ export function createApiApp() {
 
     const sb = getSupabaseAdmin();
     // Production must acknowledge a durable database write, never ephemeral JSON.
-    if (process.env.NODE_ENV === "production" && (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+    if (process.env.NODE_ENV === "production" && (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim())) {
       res.status(503).json({ ok: false, error: "Inquiry service temporarily unavailable" });
       return;
     }
@@ -505,11 +504,15 @@ export function createApiApp() {
       created_at: now,
       updated_at: now,
     };
-    appendOrder(order);
-
+    // A local JSON copy is not a receipt for a durable database order.
     const sb = getSupabaseAdmin();
-    if (sb) {
-      void sb.from("orders").insert({
+    if (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+      res.status(503).json({ ok: false, error: "Order service temporarily unavailable; no order was saved." });
+      return;
+    }
+    try {
+      const saved = await sb.from("orders").insert({
+        id: order.id,
         user_id: order.user_id,
         status: order.status,
         payment_status: order.payment_status,
@@ -518,10 +521,29 @@ export function createApiApp() {
         customer_name: order.customer_name,
         customer_email: order.customer_email,
         customer_phone: order.customer_phone,
-      });
+        shipping_address: {
+          address_line1: order.address_line1,
+          city: order.city,
+          postal_code: order.postal_code,
+          country: order.country,
+        },
+      }).select("id").single();
+      if (saved.error || saved.data?.id !== order.id) {
+        throw new Error("Order insert was not confirmed");
+      }
+    } catch {
+      console.warn("[fmk-api] order_insert_unconfirmed");
+      res.status(503).json({ ok: false, error: "Order save could not be confirmed. Please contact support before retrying." });
+      return;
     }
 
-    appendAnalytics({
+    // Secondary local bookkeeping must not turn a confirmed order into a retry.
+    try {
+      appendOrder(order);
+    } catch {
+      console.warn("[fmk-api] order_local_copy_failed");
+    }
+    try { appendAnalytics({
       id: randomUUID(),
       event_name: "order_created",
       session_id: parsed.data.session_id,
@@ -529,7 +551,9 @@ export function createApiApp() {
       currency: order.currency,
       metadata: { order_id: order.id, order_number: order.order_number, total: order.total },
       created_at: now,
-    });
+    }); } catch {
+      console.warn("[fmk-api] order_analytics_failed");
+    }
 
     void pushToJarvis({
       type: "order",
