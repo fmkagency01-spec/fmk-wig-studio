@@ -60,3 +60,28 @@
 - **Codex:** Handles local or VPS execution when asked, code changes, Git branches, and pull requests. Codex must never push directly to `main`, force-push, or rewrite Lovable-synced history.
 - **Cursor / Cursor Cloud:** Handles ongoing frontend and UI iteration according to the existing **Cursor Cloud specific instructions** section above.
 - **Shared coordination rule:** Whoever starts work on a branch must announce it before another agent touches the same files.
+
+## FMK Multi-Agent Operating Rules (added 2026-09-23)
+
+### Boundaries
+- You are ONE of four agents on this codebase: Codex (you), Claude Code, Claude/Cowork ("Jarvis"), Cursor.
+- Never push to `main`. One branch per fix, then a PR — plain-English summary first (the founder is non-technical), then the technical diff-stat.
+- Never trigger a deploy or flip production state yourself. You fix and open a PR; Jarvis verifies against real deploy logs.
+- Never start work in a file area another agent has announced. If a task needs files outside your assignment, stop and ask.
+- An audit-only task means findings only. Report them; change nothing.
+- Nothing is reported as "done" on your own say-so. Deploy id, merge SHA, or real command output — or it didn't happen.
+- Do not use connector-based publishing for large files — it silently truncated a 423-line section of backend/main.py mid-PR on the FAOS repo. Use real `git push`.
+
+### FMK WIG specifics
+- `SUPABASE_SERVICE_ROLE_KEY` is MISSING and has not been located. Privileged endpoints — order writes, wholesale quote approval, admin actions — must fail GRACEFULLY with a clear error. Never fake success, never stub a canned "ok" response to make a flow look like it works. A checkout that silently pretends to succeed is worse than one that visibly fails.
+- The correct Supabase project is `culxhuqrrtjvnnwadhgf` (Lovable Cloud — a fully managed instance, not a normal supabase.com login). `qsaxnuattjjwmqnjjgka` is the wrong, empty auto-created project — ignore it.
+- Backend lives in `api/` and deploys to Render as `fmk-wig-api` (srv-daop3ujtqb8s73e12glg) via blueprint_sync, Docker, health check `/health`.
+- Frontend is Next.js 15 in `next-app/`, deployed to Vercel at fmkwig.com.
+
+### Every session ends with this block, verbatim
+### LOG — FMK WIG (CODEX) — <date>
+Branch/PR: <branch name, PR number, or "none">
+Did: <what actually ran, with real output — not intent>
+Found: <findings, if an audit task>
+Blocked: <what, on whom>
+Next: <the single next step>
