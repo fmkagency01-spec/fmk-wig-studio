@@ -1,3 +1,5 @@
+import { getAccessToken } from "@/lib/auth";
+
 const SESSION_KEY = "fmk_session_v1";
 
 function apiBase(): string {
@@ -89,9 +91,10 @@ export async function trackEvent(payload: {
 }
 
 export async function submitB2BInquiry(body: Record<string, unknown>) {
+  const token = await getAccessToken();
   const res = await fetch(`${apiBase()}/b2b/inquiries`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({
       ...body,
       lead_origin: detectLeadOrigin(),
