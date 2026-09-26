@@ -16,18 +16,28 @@ test("inquiry decisions enforce admin role and legal transitions", async () => {
       CREATE TABLE public.b2b_inquiries(id uuid PRIMARY KEY, status text NOT NULL DEFAULT 'new', estimated_total numeric, currency text NOT NULL DEFAULT 'BDT', updated_at timestamptz NOT NULL DEFAULT now());
       ALTER TABLE public.b2b_inquiries ENABLE ROW LEVEL SECURITY;
       CREATE POLICY admin_all ON public.b2b_inquiries FOR ALL TO authenticated USING (private.has_role(auth.uid(),'admin')) WITH CHECK (private.has_role(auth.uid(),'admin'));
-      GRANT USAGE ON SCHEMA public, auth, private TO authenticated;
+      GRANT USAGE ON SCHEMA public, auth TO authenticated;
       GRANT SELECT, UPDATE ON public.b2b_inquiries TO authenticated;
       GRANT EXECUTE ON FUNCTION auth.uid(), private.has_role(uuid, public.app_role) TO authenticated;
       INSERT INTO auth.users VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
       INSERT INTO public.b2b_inquiries(id) VALUES ('11111111-1111-4111-8111-111111111111');
     `);
-    const migration = readFileSync(
+    const transitionMigration = readFileSync(
       new URL("../migrations/20260926020000_b2b_inquiry_transitions.sql", import.meta.url),
       "utf8",
     );
-    await db.exec(migration);
-    await db.exec(migration);
+    const schemaUsageMigration = readFileSync(
+      new URL("../migrations/20260926030000_grant_private_schema_usage.sql", import.meta.url),
+      "utf8",
+    );
+    await db.exec(transitionMigration);
+    await db.exec(schemaUsageMigration);
+    await db.exec(transitionMigration);
+    await db.exec(schemaUsageMigration);
+    const schemaPrivilege = await db.query(
+      "SELECT has_schema_privilege('authenticated', 'private', 'USAGE') AS allowed",
+    );
+    assert.equal(schemaPrivilege.rows[0].allowed, true);
     const setUser = async (id) => {
       await db.exec("RESET ROLE");
       await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [id]);
