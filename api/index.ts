@@ -4,13 +4,11 @@ import cors from "cors";
 import { z } from "zod";
 import {
   appendAnalytics,
-  appendInquiry,
   appendOrder,
   getOrder,
   listAnalytics,
   listInquiries,
   listOrders,
-  markInquiryJarvisSynced,
   updateOrderStatus,
   type Order,
   type B2BInquiry,
@@ -300,8 +298,24 @@ export function createApiApp() {
       res.status(400).json({ error: "Unknown product" });
       return;
     }
+    // Ownership comes only from a verified bearer token, never request JSON.
+    let userId: string | null = null;
+    if (req.header("authorization")) {
+      try {
+        const user = await verifyBearerUser(req.header("authorization"));
+        if (!user) {
+          res.status(401).json({ ok: false, error: "Invalid or expired sign-in. Please sign in again." });
+          return;
+        }
+        userId = user.id;
+      } catch {
+        res.status(503).json({ ok: false, error: "Sign-in verification unavailable; no inquiry was saved." });
+        return;
+      }
+    }
     const inquiry: B2BInquiry = {
       id: randomUUID(),
+      user_id: userId,
       company_name: parsed.data.company_name,
       contact_name: parsed.data.contact_name,
       email: parsed.data.email,
@@ -322,13 +336,14 @@ export function createApiApp() {
 
     const sb = getSupabaseAdmin();
     // Production must acknowledge a durable database write, never ephemeral JSON.
-    if (process.env.NODE_ENV === "production" && (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim())) {
+    if (!sb || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
       res.status(503).json({ ok: false, error: "Inquiry service temporarily unavailable" });
       return;
     }
-    if (sb) {
+    try {
       const saved = await sb.from("b2b_inquiries").insert({
         id: inquiry.id,
+        user_id: inquiry.user_id,
         company_name: inquiry.company_name,
         contact_name: inquiry.contact_name,
         email: inquiry.email,
@@ -342,13 +357,14 @@ export function createApiApp() {
         estimated_total: inquiry.estimated_total,
         currency: inquiry.currency,
         status: inquiry.status,
-      });
-      if (saved.error) {
-        res.status(503).json({ ok: false, error: "Inquiry could not be saved. Please retry later." });
-        return;
+      }).select("id").single();
+      if (saved.error || saved.data?.id !== inquiry.id) {
+        throw new Error("Inquiry insert was not confirmed");
       }
-    } else {
-      appendInquiry(inquiry);
+    } catch {
+      console.warn("[fmk-api] inquiry_insert_unconfirmed");
+      res.status(503).json({ ok: false, error: "Inquiry save could not be confirmed. Please contact support before retrying." });
+      return;
     }
 
     const jarvis = await pushToJarvis({
@@ -358,10 +374,12 @@ export function createApiApp() {
       data: inquiry as unknown as Record<string, unknown>,
     });
     if (jarvis.ok && !jarvis.skipped) {
-      if (sb) {
-        await sb.from("b2b_inquiries").update({ jarvis_synced_at: new Date().toISOString() }).eq("id", inquiry.id);
-      } else {
-        markInquiryJarvisSynced(inquiry.id);
+      try {
+        const synced = await sb.from("b2b_inquiries").update({ jarvis_synced_at: new Date().toISOString() }).eq("id", inquiry.id);
+        if (synced.error) console.warn("[fmk-api] inquiry_sync_marker_failed");
+      } catch {
+        // A notification bookkeeping failure must not invite a duplicate submission.
+        console.warn("[fmk-api] inquiry_sync_marker_failed");
       }
     }
 

@@ -43,6 +43,7 @@ export type AnalyticsEvent = {
 
 export type B2BInquiry = {
   id: string;
+  user_id?: string | null;
   company_name: string;
   contact_name: string;
   email: string;

@@ -5,6 +5,8 @@ GlobalRegistrator.register();
 const success = mock(() => {});
 const error = mock(() => {});
 mock.module('sonner', () => ({ toast: { success, error } }));
+let accessToken = null;
+mock.module('../src/lib/auth.ts', () => ({ getAccessToken: async () => accessToken }));
 const { createElement } = await import('react');
 const { render, fireEvent, screen, waitFor, cleanup } = await import('@testing-library/react');
 const { default: ContactPage } = await import('../src/app/contact/page.tsx');
@@ -12,6 +14,7 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   cleanup();
+  accessToken = null;
   globalThis.fetch = originalFetch;
   success.mockClear();
   error.mockClear();
@@ -35,6 +38,13 @@ function retained() {
 }
 
 describe('contact submission receipts', () => {
+  test('signed-in inquiry carries the existing bearer token', async () => {
+    accessToken = 'test-session-token';
+    globalThis.fetch = mock(async () => Response.json({ ok: true, inquiry_id: 'saved-id' }, { status: 201 }));
+    fill();
+    await waitFor(() => expect(success).toHaveBeenCalledTimes(1));
+    expect(globalThis.fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer test-session-token');
+  });
   for (const status of [400, 503, 500]) {
     test('HTTP ' + status + ' displays backend error and retains the message', async () => {
       globalThis.fetch = mock(async () => Response.json({ ok: false, error: 'Message was not saved' }, { status }));
@@ -63,6 +73,7 @@ describe('contact submission receipts', () => {
       let finish;
       globalThis.fetch = mock(() => new Promise((resolve) => { finish = resolve; }));
       fill(subject);
+      await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
       retained();
       expect(screen.getByRole('button', { name: 'Sending…' }).disabled).toBe(true);
       const [url, options] = globalThis.fetch.mock.calls[0];

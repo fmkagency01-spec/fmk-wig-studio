@@ -25,7 +25,8 @@ test('wholesale API integrity and access boundaries', async (t) => {
       select() { return this; }, eq() { return this; }, order() { return this; },
       limit: async () => ({ data: saved ? [saved] : [], error: null }),
       maybeSingle: async () => ({ data: { role }, error: null }),
-      insert: async (row) => { saved = row; return { error: writeError }; },
+      insert(row) { saved = row; return this; },
+      single: async () => ({ data: writeError ? null : { id: saved.id }, error: writeError }),
     };
     assert.ok(['user_roles', 'b2b_inquiries'].includes(table));
     return query;
