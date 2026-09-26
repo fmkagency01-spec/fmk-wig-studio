@@ -28,23 +28,20 @@ test('missing credentials and durable order acknowledgements', async (t) => {
   let inserted;
   const insertStarted = new Promise((resolve) => { inserted = resolve; });
   const confirmation = new Promise((resolve) => { release = resolve; });
-  sb.from = (table) => {
-    assert.equal(table, 'orders');
-    return { insert(row) {
-      writes++;
-      saved = row;
-      return { select(columns) {
-        assert.equal(columns, 'id');
-        return { async single() {
-          if (mode === 'error') return { data: null, error: { message: 'database unavailable' } };
-          if (mode === 'throw') throw new Error('network unavailable');
-          if (mode === 'empty') return { data: null, error: null };
-          if (mode === 'wrong-id') return { data: { id: 'not-the-order' }, error: null };
-          if (mode === 'delayed') { inserted(); await confirmation; }
-          return { data: { id: row.id }, error: null };
-        } };
-      } };
-    } };
+  sb.rpc = async (name, args) => {
+    assert.equal(name, 'create_order_with_items');
+    writes++;
+    saved = args.order_row;
+    if (mode === 'error') return { data: null, error: { message: 'database unavailable' } };
+    if (mode === 'throw') throw new Error('network unavailable');
+    if (mode === 'empty') return { data: null, error: null };
+    if (mode === 'wrong-id') return { data: { order_id: 'not-the-order', item_count: args.item_rows.length }, error: null };
+    if (mode === 'wrong-count') return { data: { order_id: args.order_row.id, item_count: 0 }, error: null };
+    if (mode === 'delayed') { inserted(); await confirmation; }
+    return {
+      data: { order_id: args.order_row.id, item_count: args.item_rows.length },
+      error: null,
+    };
   };
   const server = createApiApp().listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -89,9 +86,9 @@ test('missing credentials and durable order acknowledgements', async (t) => {
     assert.equal((await fetch(base + '/orders-extra')).status, 404);
   });
 
-  await t.test('database error, exception, empty receipt and mismatched ID never return success', async () => {
+  await t.test('database errors and incomplete receipts never return success', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-not-a-credential';
-    for (mode of ['error', 'throw', 'empty', 'wrong-id']) {
+    for (mode of ['error', 'throw', 'empty', 'wrong-id', 'wrong-count']) {
       const response = await postOrder();
       assert.equal(response.status, 503, mode);
       const body = await response.json();
