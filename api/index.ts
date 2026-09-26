@@ -465,13 +465,14 @@ export function createApiApp() {
   app.post("/orders", async (req, res) => {
     const itemSchema = z.object({
       slug: z.string().optional(),
-      product_id: z.string().nullable().optional(),
+      product_id: z.string().uuid().nullable().optional(),
       name: z.string().optional(),
       quantity: z.number().int().positive(),
-      unit_price_bdt: z.number().optional(),
-      unit_price: z.number().optional(),
+      unit_price_bdt: z.number().nonnegative().optional(),
+      unit_price: z.number().nonnegative().optional(),
       subtotal_bdt: z.number().optional(),
       subtotal: z.number().optional(),
+      image_url: z.string().url().nullable().optional(),
     });
     const schema = z.object({
       currency: z.enum(["BDT", "USD"]).default("BDT"),
@@ -493,6 +494,23 @@ export function createApiApp() {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid order", details: parsed.error.flatten() });
+      return;
+    }
+
+    const orderItems = parsed.data.items.map((item) => ({
+      product_id: item.product_id ?? null,
+      product_name: item.name?.trim() || item.slug?.trim() || "",
+      unit_price: item.unit_price ?? item.unit_price_bdt,
+      quantity: item.quantity,
+      image_url: item.image_url ?? null,
+    }));
+    if (orderItems.some((item) => !item.product_name || item.unit_price === undefined)) {
+      res.status(400).json({
+        error: "Invalid order",
+        details: {
+          items: ["Each item requires a name or slug and a unit price."],
+        },
+      });
       return;
     }
 
@@ -529,25 +547,32 @@ export function createApiApp() {
       return;
     }
     try {
-      const saved = await sb.from("orders").insert({
-        id: order.id,
-        user_id: order.user_id,
-        status: order.status,
-        payment_status: order.payment_status,
-        total: order.total,
-        currency: order.currency,
-        customer_name: order.customer_name,
-        customer_email: order.customer_email,
-        customer_phone: order.customer_phone,
-        shipping_address: {
-          address_line1: order.address_line1,
-          city: order.city,
-          postal_code: order.postal_code,
-          country: order.country,
+      const saved = await sb.rpc("create_order_with_items", {
+        order_row: {
+          id: order.id,
+          user_id: order.user_id,
+          status: order.status,
+          payment_status: order.payment_status,
+          total: order.total,
+          currency: order.currency,
+          customer_name: order.customer_name,
+          customer_email: order.customer_email,
+          customer_phone: order.customer_phone,
+          shipping_address: {
+            address_line1: order.address_line1,
+            city: order.city,
+            postal_code: order.postal_code,
+            country: order.country,
+          },
         },
-      }).select("id").single();
-      if (saved.error || saved.data?.id !== order.id) {
-        throw new Error("Order insert was not confirmed");
+        item_rows: orderItems,
+      });
+      if (
+        saved.error ||
+        saved.data?.order_id !== order.id ||
+        Number(saved.data?.item_count) !== orderItems.length
+      ) {
+        throw new Error("Order and item inserts were not confirmed");
       }
     } catch {
       console.warn("[fmk-api] order_insert_unconfirmed");
